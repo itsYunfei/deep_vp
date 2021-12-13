@@ -10,6 +10,8 @@ from models.hourglass import load_model, parse_command_line
 from utils.diamond_space import get_focal, process_heatmaps
 from utils.video import get_cap
 
+import tensorflow as tf
+
 
 def preview():
     args = parse_command_line()
@@ -18,7 +20,8 @@ def preview():
     heatmap_model, scales, _, _ = load_model(args)
     print("Heatmap model loaded!")
 
-    object_detecor = hub.load('https://tfhub.dev/tensorflow/centernet/resnet50v1_fpn_512x512/1')
+    # object_detecor = hub.load('https://tfhub.dev/tensorflow/centernet/resnet50v1_fpn_512x512/1')
+    object_detecor = tf.saved_model.load("./snapshots/centernet_resnet50v1_fpn_512x512_1")
     print("Object detection model loaded!")
 
     cap = get_cap(args.path)
@@ -44,6 +47,8 @@ def preview():
         pp = np.array([frame.shape[1] / 2 + 0.5, frame.shape[0] / 2 + 0.5])
 
         result = object_detecor(frame[np.newaxis, :, :, ::-1])
+        print(result)
+
         boxes, labels, scores = result["detection_boxes"].numpy()[0], result["detection_classes"].numpy()[0], result["detection_scores"].numpy()[0]
         l = np.logical_and(scores > 0.5, labels == 3)
         boxes = boxes[l]
@@ -55,17 +60,25 @@ def preview():
         cv2.imshow("Frame", frame)
         cv2.waitKey(1)
 
+        print(boxes)
+
         for box in boxes:
-            x_min = int(1920 * box[1])
-            y_min = int(1080 * box[0])
-            x_max = int(1920 * box[3] + 1)
-            y_max = int(1080 * box[2] + 1)
+            # x_min = int(1920 * box[1])
+            # y_min = int(1080 * box[0])
+            # x_max = int(1920 * box[3] + 1)
+            # y_max = int(1080 * box[2] + 1)
+
+            x_min = int(360 * box[1])
+            y_min = int(288 * box[0])
+            x_max = int(360 * box[3] + 1)
+            y_max = int(288 * box[2] + 1)
 
             box_center = np.array([x_min + x_max, y_min + y_max]) / 2
             box_scale = np.array([x_max - x_min, y_max - y_min]) / 2
 
             car = frame[y_min:y_max, x_min:x_max, :]
-            car = cv2.resize(car, (args.input_size, args.input_size), cv2.INTER_CUBIC)
+            if car is not None:
+                car = cv2.resize(car, (args.input_size, args.input_size), cv2.INTER_CUBIC)
 
             cv2.imshow("Vehicle", car)
 
